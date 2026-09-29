@@ -1,0 +1,58 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: leadforge_postgres
+    environment:
+      POSTGRES_DB: leadforge_db
+      POSTGRES_USER: leadforge
+      POSTGRES_PASSWORD: leadforge
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U leadforge -d leadforge_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: leadforge_backend
+    environment:
+      DATABASE_URL: postgresql://leadforge:leadforge@postgres:5432/leadforge_db
+      JWT_SECRET: docker-dev-jwt-secret-change-in-production-minimum-32-chars
+      JWT_ALGORITHM: HS256
+      JWT_EXPIRE_MINUTES: 10080
+      CORS_ORIGINS: http://localhost:5173,http://localhost:3000,http://localhost:80
+      AI_PROVIDER: fallback
+      APP_ENV: development
+      DEBUG: "false"
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: http://localhost:8000
+    container_name: leadforge_frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
