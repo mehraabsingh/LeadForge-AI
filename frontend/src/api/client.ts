@@ -1,7 +1,7 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import { ApiError } from '../types';
 
-const BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000') + '/api';
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api';
 
 export const apiClient = axios.create({
   baseURL: BASE_URL,
@@ -37,11 +37,17 @@ apiClient.interceptors.response.use(
       }
     }
 
+    let errorMessage = error.message || 'An unexpected error occurred';
+    const detail = (error.response?.data as any)?.detail;
+    
+    if (typeof detail === 'string') {
+      errorMessage = detail;
+    } else if (Array.isArray(detail)) {
+      errorMessage = detail.map(d => `${d.loc?.slice(-1)?.[0] ?? 'Field'}: ${d.msg}`).join(', ');
+    }
+
     const apiError: ApiError = {
-      message:
-        (error.response?.data as { detail?: string })?.detail ||
-        error.message ||
-        'An unexpected error occurred',
+      message: errorMessage,
       status: error.response?.status ?? 0,
       detail: error.response?.data as Record<string, unknown>,
     };
